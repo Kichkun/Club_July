@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8"/>
+    <title>Cam view</title>
+    <meta name="viewport" content="width=device-width">
+    <style>
+        .container {
+            width: 450px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        a:link.button,
+        a:active.button,
+        a:visited.button,
+        a:hover.button {
+            margin: 30px 5px 0 2px;
+            padding: 7px 13px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div>
+        <canvas id="cnv" width="320" height="240" style="border:1px solid #d3d3d3;">
+            Your browser does not support the HTML5 canvas tag.
+        </canvas>
+    </div>
+</div>
+<script type="text/javascript">
+    var h = 240, w = 320;
+
+    document.addEventListener("DOMContentLoaded", function (event) {
+        console.log("DOM fully loaded and parsed");
+        var c = document.getElementById("cnv");
+        var ctx = c.getContext("2d");
+        window.img = [];
+
+        var draw = function () {
+            var imgData = ctx.createImageData(w, h);
+            for (var i = 0; i < h * w * 4; i += 4) {
+                imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = window.img[i / 4];
+                imgData.data[i + 3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        };
+
+        var clear = function () {
+            var imgData = ctx.createImageData(w, h);
+            for (var i = 0; i < w * h * 4; i += 4) {
+                imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = 0;
+                imgData.data[i + 3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        };
+
+        var connection = new WebSocket('ws://' + location.hostname + ':81/', ['arduino']);
+        connection.onopen = function () {
+            console.log("connection opened");
+            connection.send('GET');
+            clear();
+        };
+
+        connection.onerror = function (error) {
+            console.log('WebSocket Error ', error);
+        };
+
+        connection.onmessage = function (evt) {
+            var data = evt.data;
+            var reader = new FileReader();
+            reader.addEventListener("loadend", function () {
+                var int8View = new Uint8Array(reader.result);
+                console.log(int8View);
+                if (window.img.length !== h * w) {
+                    int8View.forEach(function (value) {
+                        window.img = window.img.concat(value + 128);
+                    });
+                } else {
+                    var post = [];
+                    if (window.img.length > h * w) {
+                        post = window.img.slice(h * w);
+                    }
+                    draw();
+                    window.img = window.img.concat(post);
+                }
+            });
+            reader.readAsArrayBuffer(data);
+        };
+    });
+</script>
+</body>
+</html>
